@@ -43,3 +43,11 @@ def match_keywords(df: pl.DataFrame, keywords: list[str]) -> pl.DataFrame:
         )
     
     return df.with_columns(expressions)
+
+def filter_keyword_matches(df: pl.DataFrame, keywords: list[str]) -> pl.DataFrame:
+    """Filter rows that have at least one keyword match."""
+    if not keywords or df.is_empty():
+        return df
+        
+    match_cols = [f"match_{kw.lower().replace(' ', '_').replace('-', '_')}" for kw in keywords]
+    return df.filter(pl.any_horizontal(pl.col(match_cols)))

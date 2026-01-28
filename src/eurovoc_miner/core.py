@@ -25,12 +25,14 @@ def get_docs(d, lang=None):
             doc = {
                 'url': r['cellarURIs']['value'].split('|||')[0],  # Take first if multiple
                 'celex': r.get('celexIds', {}).get('value', '').split('|||')[0],
+                'eli': r.get('eliIds', {}).get('value', '').split('|||')[0],
                 'title': r['title']['value'].split('|||')[0],
                 'date': r['date']['value'],
                 'lang': r['langIdentifier']['value'].lower(),
                 'institutions': [t.strip() for t in r.get('authors', {}).get('value', '').split('|||') if t.strip()],
                 'work_types': [t.strip() for t in r.get('workTypes', {}).get('value', '').split('|||') if t.strip()],
                 'procedure_ids': [t.strip() for t in r.get('procedureIds', {}).get('value', '').split('|||') if t.strip()],
+                'directory_codes': [t.strip() for t in r.get('directoryCodes', {}).get('value', '').split('|||') if t.strip()],
                 'formats': [t.strip() for t in r['mtypes']['value'].split('|||')],
                 'eurovoc_concepts': terms,
                 'eurovoc_concepts_ids': concept_ids

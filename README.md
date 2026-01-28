@@ -42,6 +42,7 @@ When using the `--keywords` flag:
 - **Auto-Sanitization**: Keywords are converted to clean snake_case column names (e.g., `match_earth_observation`).
 - **Performance**: Matching is performed using vectorized Polars operations.
 - **Consistency**: Empty daily files still contain the keyword columns to maintain schema across all Parquet files.
+- **Filtering**: Use `--save-only-keyword-matches` to only save records that match at least one of the provided keywords.
 
 
 The output will be saved as daily `.parquet` files in the `files/` directory.

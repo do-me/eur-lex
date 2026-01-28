@@ -14,17 +14,30 @@ DISTINCT (group_concat(distinct ?work;separator="|||") as ?cellarURIs)
 ?date
 (group_concat(distinct ?subjectLabel;separator="|||") as ?subjects)
 (group_concat(distinct ?workId_;separator="|||") as ?workIds)
-(group_concat(distinct ?celex;separator="|||") as ?celexIds)
+(group_concat(distinct ?celex_final;separator="|||") as ?celexIds)
+(group_concat(distinct ?eli;separator="|||") as ?eliIds)
 (group_concat(distinct ?procId;separator="|||") as ?procedureIds)
+(group_concat(distinct ?dirCodeLabel;separator="|||") as ?directoryCodes)
 WHERE
 {
    graph ?gw{
-    ?work rdf:type ?resType .
-    OPTIONAL { ?resType skos:prefLabel ?resTypeLabel filter (lang(?resTypeLabel)="en") }
+    ?work rdf:type ?type .
+    OPTIONAL { 
+        ?work cdm:work_has_resource-type ?resType . 
+        ?resType skos:prefLabel ?resTypeLabel FILTER(lang(?resTypeLabel)="en") 
+    }
     ?work cdm:work_date_document ?date .
     ?work cdm:work_id_document ?workId_.
-    OPTIONAL { ?work cdm:resource_legal_celex_number ?celex }
+    OPTIONAL { ?work cdm:resource_legal_id_celex ?c1 }
+    OPTIONAL { ?work cdm:resource_legal_celex_number ?c2 }
+    OPTIONAL { ?work cdm:work_id_celex ?c3 }
+    BIND(COALESCE(?c1, ?c2, ?c3) AS ?celex_final)
+    OPTIONAL { ?work cdm:resource_legal_eli ?eli }
     OPTIONAL { ?work cdm:procedure_id ?procId }
+    OPTIONAL {
+        ?work cdm:resource_legal_is_about_concept_directory_code ?dirCode .
+        ?dirCode skos:prefLabel ?dirCodeLabel FILTER(lang(?dirCodeLabel)="en")
+    }
     ?work cdm:work_is_about_concept_eurovoc ?subject. graph ?gs
     { ?subject skos:prefLabel ?subjectLabel  filter (lang(?subjectLabel)="en") }.
    }
