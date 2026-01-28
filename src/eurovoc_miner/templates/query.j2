@@ -9,7 +9,7 @@ DISTINCT (group_concat(distinct ?work;separator="|||") as ?cellarURIs)
 (group_concat(distinct ?title_;separator="|||") as ?title)
 ?langIdentifier
 (group_concat(distinct ?mtype;separator="|||") as ?mtypes)
-(group_concat(distinct ?resType;separator="|||") as ?workTypes)
+(group_concat(distinct ?resTypeLabel;separator="|||") as ?workTypes)
 (group_concat(distinct ?agentName;separator="|||") as ?authors)
 ?date
 (group_concat(distinct ?subjectLabel;separator="|||") as ?subjects)
@@ -20,6 +20,7 @@ WHERE
 {
    graph ?gw{
     ?work rdf:type ?resType .
+    OPTIONAL { ?resType skos:prefLabel ?resTypeLabel filter (lang(?resTypeLabel)="en") }
     ?work cdm:work_date_document ?date .
     ?work cdm:work_id_document ?workId_.
     OPTIONAL { ?work cdm:resource_legal_celex_number ?celex }

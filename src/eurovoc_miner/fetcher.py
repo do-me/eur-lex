@@ -4,17 +4,32 @@ import jinja2
 import xmltodict
 import logging
 from joblib import expires_after
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
 from .config import USER_AGENT, SPARQL_ENDPOINT, EUROVOC_XML_URL, TEMPLATES_DIR, CACHE_DIR
 from joblib import Memory
 
 log = logging.getLogger(__name__)
 memory = Memory(CACHE_DIR, verbose=0)
 
+def get_session():
+    session = requests.Session()
+    retry = Retry(
+        total=5,
+        backoff_factor=1,
+        status_forcelist=[500, 502, 503, 504],
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    return session
+
 @memory.cache(cache_validation_callback=expires_after(minutes=120))
 def get_eurovoc_terms_and_id():
     """Fetch and parse the Eurovoc taxonomy."""
     eurovoc_terms_and_id = {}
-    response = requests.get(
+    session = get_session()
+    response = session.get(
         EUROVOC_XML_URL,
         headers={'Accept': 'application/xml', 'Accept-Language': 'en', 'User-Agent': USER_AGENT}
     )
@@ -57,7 +72,8 @@ def get_json_response(d, lang=None):
         "run": "Run Query"
     }
 
-    response = requests.get(SPARQL_ENDPOINT, headers=headers, params=params)
+    session = get_session()
+    response = session.get(SPARQL_ENDPOINT, headers=headers, params=params)
     response.raise_for_status()
     return response.json()
 

@@ -1,10 +1,10 @@
-import requests
 import logging
 from io import BytesIO
 from bs4 import BeautifulSoup
 import docx2txt
 from pdfminer.high_level import extract_text
 from .config import USER_AGENT, CACHE_DIR
+from .fetcher import get_session
 from joblib import Memory
 
 log = logging.getLogger(__name__)
@@ -13,7 +13,8 @@ memory = Memory(CACHE_DIR, verbose=0)
 @memory.cache()
 def get_pdf_body(r):
     url, lang = r['url'], r['lang']
-    response = requests.get(url, headers={'Accept': 'application/pdf', 'Accept-Language': lang, 'User-Agent': USER_AGENT})
+    session = get_session()
+    response = session.get(url, headers={'Accept': 'application/pdf', 'Accept-Language': lang, 'User-Agent': USER_AGENT})
     if response.status_code == 200:
         return extract_text(BytesIO(response.content))
     return ""
@@ -21,14 +22,16 @@ def get_pdf_body(r):
 @memory.cache()
 def get_html_content(r, accept='text/html'):
     url, lang = r['url'], r['lang']
-    response = requests.get(url, headers={'Accept': accept, 'Accept-Language': lang, 'User-Agent': USER_AGENT})
+    session = get_session()
+    response = session.get(url, headers={'Accept': accept, 'Accept-Language': lang, 'User-Agent': USER_AGENT})
     if response.status_code == 200:
         return BeautifulSoup(response.content, 'html.parser').get_text()
     return ""
 
 @memory.cache()
 def get_doc_content(url, accept, lang='en'):
-    response = requests.get(url, headers={'Accept': accept, 'Accept-Language': lang, 'User-Agent': USER_AGENT})
+    session = get_session()
+    response = session.get(url, headers={'Accept': accept, 'Accept-Language': lang, 'User-Agent': USER_AGENT})
     if response.status_code == 200:
         return docx2txt.process(BytesIO(response.content))
     return ""

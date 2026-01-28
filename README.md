@@ -8,6 +8,11 @@ A high-performance mining tool for extracting text and semantic concepts from th
 - **Vectorized Preprocessing**: Ultra-fast text cleaning powered by `Polars`.
 - **Modular Design**: Clean separation of concerns following modern Python package standards.
 - **Robust Caching**: Joblib-powered caching to avoid redundant downloads and expensive parsing.
+- **Rich Metadata Collection**: Automatically extracts:
+  - CELEX numbers for legal uniquely indexing.
+  - Institution/Author labels (e.g., "European Commission").
+  - Procedure IDs for legislative tracking.
+  - Document types and Eurovoc concept IDs.
 
 ## Installation
 Ensure you have `uv` installed, then:
