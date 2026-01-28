@@ -38,7 +38,11 @@ uv run eurovoc-miner dataset_ --days 5 --lang ENG --keywords "earth observation"
 
 # Batch Discovery
 # Fetch 60 days of metadata in a single SPARQL request (faster for large spans)
-uv run eurovoc-miner dataset_ --days 60 --days-per-request 60
+uv run eurovoc-miner dataset_history --days 60 --days-per-request 60
+
+# Data Engineering Best Practices
+# Use --lookback for a safety margin and --unique-on to deduplicate by ID
+uv run eurovoc-miner dataset_ --lookback 14 --unique-on celex
 ```
 
 Large batches might give you a slight performance boost, but probably irrelevant for most use cases. Comparison: 

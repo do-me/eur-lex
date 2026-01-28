@@ -12,19 +12,23 @@ log = logging.getLogger(__name__)
 def run():
     parser = argparse.ArgumentParser(description='Eurovoc Miner - European Commission Cellar Data Extraction')
     parser.add_argument('output_prefix', type=str, help='Prefix for the output Parquet files')
-    parser.add_argument('--days', type=int, default=1, help='Number of days to look back')
+    parser.add_argument('--days', type=int, default=1, help='Number of days to process (alias for --lookback)')
+    parser.add_argument('--lookback', type=int, help='Safety margin: how many days into the past to search')
     parser.add_argument('--lang', type=str, help='Filter by language code (e.g. ENG, SPA, FRA)')
     parser.add_argument('--keywords', nargs='+', help='Optional keywords to match in full text')
     parser.add_argument('--save-only-keyword-matches', action='store_true', help='Only save records that match at least one keyword')
     parser.add_argument('--days-per-request', type=int, default=1, help='Number of days to fetch in a single SPARQL request')
+    parser.add_argument('--unique-on', type=str, help='Column name to ensure uniqueness (e.g. celex)')
     args = parser.parse_args()
 
+    # Use lookback as window size if provided
+    total_days = args.lookback if args.lookback is not None else args.days
     lang_filter = args.lang.upper() if args.lang else None
     
     # Process in batches of days_per_request
-    for i in range(0, args.days, args.days_per_request):
+    for i in range(0, total_days, args.days_per_request):
         # Calculate how many days to fetch in this specific batch (handles remainder)
-        current_batch_days = min(args.days_per_request, args.days - i)
+        current_batch_days = min(args.days_per_request, total_days - i)
         
         # d is the "oldest" date in the batch (start of the range)
         # Because we go backwards from today, d = today - i - (batch_size - 1)
@@ -46,6 +50,15 @@ def run():
                 df = clean_text_batch(df)
                 df = match_keywords(df, args.keywords)
                 
+                if args.unique_on:
+                    if args.unique_on in df.columns:
+                        original_len = len(df)
+                        df = df.unique(subset=[args.unique_on], keep="last")
+                        if len(df) < original_len:
+                            log.info(f"Deduplicated: {original_len} -> {len(df)} records (unique on {args.unique_on})")
+                    else:
+                        log.warning(f"Column '{args.unique_on}' not found for deduplication. Available: {df.columns}")
+
                 if args.save_only_keyword_matches and args.keywords:
                     df = filter_keyword_matches(df, args.keywords)
                     log.info(f"Filtered to {len(df)} keyword matches.")
