@@ -5,7 +5,7 @@ import polars as pl
 import logging
 from .core import get_docs_text
 from .processor import clean_text_batch
-from .config import FILES_DIR
+from .config import FILES_DIR, SCHEMA
 
 log = logging.getLogger(__name__)
 
@@ -23,18 +23,24 @@ def run():
         
         try:
             docs = list(get_docs_text(date, lang=lang_filter))
+            
             if not docs:
-                continue
-
-            df = pl.DataFrame(docs)
-            df = clean_text_batch(df)
+                # Create empty DataFrame with schema
+                df = pl.DataFrame([], schema=SCHEMA)
+                log.info(f"∅ No documents for {date}, creating empty file.")
+            else:
+                df = pl.DataFrame(docs, schema=SCHEMA)
+                df = clean_text_batch(df)
 
             lang_suffix = f"_{args.lang.lower()}" if args.lang else ""
             filename = f"{args.output_prefix}{date}{lang_suffix}.parquet"
             output_path = os.path.join(FILES_DIR, filename)
             
             df.write_parquet(output_path)
-            log.info(f"✓ Saved {len(df)} records to {output_path}")
+            if not docs:
+                log.info(f"✓ Saved empty file to {output_path}")
+            else:
+                log.info(f"✓ Saved {len(df)} records to {output_path}")
 
         except Exception as e:
             log.error(f"Failed to process {date}: {e}")

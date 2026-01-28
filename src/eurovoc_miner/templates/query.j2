@@ -5,15 +5,15 @@ PREFIX xsd:<http://www.w3.org/2001/XMLSchema#>
 PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 PREFIX owl:<http://www.w3.org/2002/07/owl#>
 SELECT
-DISTINCT (group_concat(distinct ?work;separator=",") as ?cellarURIs)
-(group_concat(distinct ?title_;separator=",") as ?title)
+DISTINCT (group_concat(distinct ?work;separator="|||") as ?cellarURIs)
+(group_concat(distinct ?title_;separator="|||") as ?title)
 ?langIdentifier
-(group_concat(distinct ?mtype;separator=",") as ?mtypes)
-(group_concat(distinct ?resType;separator=",") as ?workTypes)
-(group_concat(distinct ?agentName;separator=",") as ?authors)
+(group_concat(distinct ?mtype;separator="|||") as ?mtypes)
+(group_concat(distinct ?resType;separator="|||") as ?workTypes)
+(group_concat(distinct ?agentName;separator="|||") as ?authors)
 ?date
-(group_concat(distinct ?subjectLabel;separator=",") as ?subjects)
-(group_concat(distinct ?workId_;separator=",") as ?workIds)
+(group_concat(distinct ?subjectLabel;separator="|||") as ?subjects)
+(group_concat(distinct ?workId_;separator="|||") as ?workIds)
 WHERE
 {
    graph ?gw{

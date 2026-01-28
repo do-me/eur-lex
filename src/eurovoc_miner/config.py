@@ -31,4 +31,17 @@ SPARQL_ENDPOINT = "https://publications.europa.eu/webapi/rdf/sparql"
 EUROVOC_XML_URL = 'http://publications.europa.eu/resource/dataset/eurovoc'
 
 # Concurrency
-MAX_WORKERS = 16
+MAX_WORKERS = os.cpu_count() or 1
+
+# Data Schema
+import polars as pl
+SCHEMA = {
+    "url": pl.String,
+    "title": pl.String,
+    "date": pl.String,
+    "lang": pl.String,
+    "formats": pl.List(pl.String),
+    "eurovoc_concepts": pl.List(pl.String),
+    "eurovoc_concepts_ids": pl.List(pl.String),
+    "text": pl.String,
+}

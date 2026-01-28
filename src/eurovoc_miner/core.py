@@ -12,7 +12,7 @@ def get_docs(d, lang=None):
     try:
         results = get_json_response(d, lang=lang)
         for r in results['results']['bindings']:
-            subjects = r.get('subjects', {}).get('value', '').replace('\xa0', ' ').split(',')
+            subjects = r.get('subjects', {}).get('value', '').replace('\xa0', ' ').split('|||')
             terms = [t.strip() for t in subjects if t.strip()]
             if not terms:
                 continue
@@ -23,11 +23,11 @@ def get_docs(d, lang=None):
                 
             # Flatten dictionary and set core fields
             doc = {
-                'url': r['cellarURIs']['value'],
-                'title': r['title']['value'],
+                'url': r['cellarURIs']['value'].split('|||')[0],  # Take first if multiple
+                'title': r['title']['value'].split('|||')[0],
                 'date': r['date']['value'],
                 'lang': r['langIdentifier']['value'].lower(),
-                'formats': [t.strip() for t in r['mtypes']['value'].split(',')],
+                'formats': [t.strip() for t in r['mtypes']['value'].split('|||')],
                 'eurovoc_concepts': terms,
                 'eurovoc_concepts_ids': concept_ids
             }
