@@ -1,0 +1,25 @@
+[project]
+name = "eurovoc-miner"
+version = "0.1.0"
+description = "Fast extraction of European Commission documents and Eurovoc concepts"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "beautifulsoup4>=4.12.2",
+    "docx2txt>=0.8",
+    "jinja2>=3.1.2",
+    "joblib>=1.3.1",
+    "pdfminer.six>=20221105",
+    "requests>=2.31.0",
+    "tqdm>=4.65.0",
+    "xmltodict>=0.13.0",
+    "polars>=1.0.0",
+    "pyarrow>=14.0.0",
+]
+
+[project.scripts]
+eurovoc-miner = "eurovoc_miner.cli:run"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"

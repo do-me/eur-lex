@@ -1,0 +1,2 @@
+[console_scripts]
+eurovoc-miner = eurovoc_miner.cli:run

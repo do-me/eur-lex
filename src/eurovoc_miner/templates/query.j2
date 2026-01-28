@@ -1,0 +1,57 @@
+PREFIX cdm:<http://publications.europa.eu/ontology/cdm#>
+PREFIX skos:<http://www.w3.org/2004/02/skos/core#>
+PREFIX dc:<http://purl.org/dc/elements/1.1/>
+PREFIX xsd:<http://www.w3.org/2001/XMLSchema#>
+PREFIX rdf:<http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX owl:<http://www.w3.org/2002/07/owl#>
+SELECT
+DISTINCT (group_concat(distinct ?work;separator=",") as ?cellarURIs)
+(group_concat(distinct ?title_;separator=",") as ?title)
+?langIdentifier
+(group_concat(distinct ?mtype;separator=",") as ?mtypes)
+(group_concat(distinct ?resType;separator=",") as ?workTypes)
+(group_concat(distinct ?agentName;separator=",") as ?authors)
+?date
+(group_concat(distinct ?subjectLabel;separator=",") as ?subjects)
+(group_concat(distinct ?workId_;separator=",") as ?workIds)
+WHERE
+{
+   graph ?gw{
+    ?work rdf:type ?resType .
+    ?work cdm:work_date_document ?date .
+    ?work cdm:work_id_document ?workId_.
+    ?work cdm:work_is_about_concept_eurovoc ?subject. graph ?gs
+    { ?subject skos:prefLabel ?subjectLabel  filter (lang(?subjectLabel)="en") }.
+   }
+    graph ?eg {
+    ?exp cdm:expression_belongs_to_work ?work .
+     ?exp cdm:expression_title ?title_ .
+     ?exp cdm:expression_uses_language ?lg.
+graph ?lgc { ?lg dc:identifier ?langIdentifier .
+                   {% if lang %} FILTER(?langIdentifier = "{{ lang }}") {% endif %}
+                 }
+}
+    graph ?gm {
+    ?manif cdm:manifestation_manifests_expression ?exp .
+    {?manif cdm:manifestation_type ?mtype .}
+}
+    OPTIONAL {        graph ?gagent { {?work cdm:work_contributed_to_by_agent ?agent .}
+           union
+           {?work cdm:work_created_by_agent ?agent }
+           union
+           {?work cdm:work_authored_by_agent ?agent }
+       }       graph ?ga { ?agent skos:prefLabel ?agentName
+                       filter (lang(?agentName)="en") .                  }}.
+ { SELECT DISTINCT ?work WHERE {
+    ?work rdf:type ?resType .
+    ?work cdm:work_date_document ?date .
+    FILTER( ?date > "{{ start }}"^^xsd:date) .
+ FILTER( ?date < "{{ end }}"^^xsd:date)
+    ?work cdm:work_id_document ?workId_.
+}
+LIMIT 10000000
+}
+}
+GROUP BY ?work  ?date ?langIdentifier
+OFFSET 0
+
