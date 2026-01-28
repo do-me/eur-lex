@@ -2,6 +2,15 @@
 
 A high-performance mining tool for extracting text and semantic concepts from the European Commission's Cellar database.
 
+Originally based on [EuropeanParliament/Eurovoc_2025](https://huggingface.co/datasets/EuropeanParliament/Eurovoc_2025) and [EuropeanParliament/Eurovoc](https://huggingface.co/datasets/EuropeanParliament/Eurovoc) but improved and extended for various reasons: 
+- [line breaks are not included](https://huggingface.co/datasets/EuropeanParliament/Eurovoc/discussions/5) that are quite important for semantic chunking approaches and RAG 
+- the preprocessing was way too aggressive and removed too much information
+- [these repos were abandoned in the past](https://huggingface.co/datasets/EuropeanParliament/Eurovoc/discussions/6)
+- Updates are infrequent
+- Most of the metadata was not included
+
+This repo improves on all of these points and provides a convenient github action syncing with Huggingface for weekly updates. 
+
 ## Features
 - **Fast SPARQL Retrieval**: Custom J2-templated queries for efficient metadata fetching.
 - **Parallel Parsing**: Multi-threaded extraction from PDF, DOCX, and HTML.
