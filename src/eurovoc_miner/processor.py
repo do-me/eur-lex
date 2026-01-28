@@ -1,5 +1,7 @@
 import polars as pl
 
+# optional preprocessing logic here
+# kept intentionally lean as overprocessing is detrimental for multi-purpose downstream tasks, see e.g. https://huggingface.co/datasets/EuropeanParliament/Eurovoc/discussions/5
 def clean_text_batch(df: pl.DataFrame) -> pl.DataFrame:
     return df.with_columns(
         pl.col("text")
