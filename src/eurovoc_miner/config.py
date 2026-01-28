@@ -37,9 +37,13 @@ MAX_WORKERS = os.cpu_count() or 1
 import polars as pl
 SCHEMA = {
     "url": pl.String,
+    "celex": pl.String,
     "title": pl.String,
     "date": pl.String,
     "lang": pl.String,
+    "institutions": pl.List(pl.String),
+    "work_types": pl.List(pl.String),
+    "procedure_ids": pl.List(pl.String),
     "formats": pl.List(pl.String),
     "eurovoc_concepts": pl.List(pl.String),
     "eurovoc_concepts_ids": pl.List(pl.String),

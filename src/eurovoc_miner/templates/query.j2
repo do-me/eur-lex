@@ -14,12 +14,16 @@ DISTINCT (group_concat(distinct ?work;separator="|||") as ?cellarURIs)
 ?date
 (group_concat(distinct ?subjectLabel;separator="|||") as ?subjects)
 (group_concat(distinct ?workId_;separator="|||") as ?workIds)
+(group_concat(distinct ?celex;separator="|||") as ?celexIds)
+(group_concat(distinct ?procId;separator="|||") as ?procedureIds)
 WHERE
 {
    graph ?gw{
     ?work rdf:type ?resType .
     ?work cdm:work_date_document ?date .
     ?work cdm:work_id_document ?workId_.
+    OPTIONAL { ?work cdm:resource_legal_celex_number ?celex }
+    OPTIONAL { ?work cdm:procedure_id ?procId }
     ?work cdm:work_is_about_concept_eurovoc ?subject. graph ?gs
     { ?subject skos:prefLabel ?subjectLabel  filter (lang(?subjectLabel)="en") }.
    }
