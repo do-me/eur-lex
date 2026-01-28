@@ -42,7 +42,7 @@ uv run eurovoc-miner dataset_history --days 60 --days-per-request 60
 
 # Data Engineering Best Practices
 # Use --lookback for a safety margin and --unique-on to deduplicate by ID
-uv run eurovoc-miner dataset_ --lookback 14 --unique-on celex
+uv run eurovoc-miner dataset_ --lookback 14 --unique-on celex --lang ENG
 ```
 
 Large batches might give you a slight performance boost, but probably irrelevant for most use cases. Comparison: 
