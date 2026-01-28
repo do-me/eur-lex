@@ -181,7 +181,7 @@ wheels = [
 ]
 
 [[package]]
-name = "eurovoc-miner"
+name = "eur_lex_miner"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

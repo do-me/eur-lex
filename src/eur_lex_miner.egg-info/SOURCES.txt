@@ -1,0 +1,15 @@
+README.md
+pyproject.toml
+src/eur_lex_miner.egg-info/PKG-INFO
+src/eur_lex_miner.egg-info/SOURCES.txt
+src/eur_lex_miner.egg-info/dependency_links.txt
+src/eur_lex_miner.egg-info/entry_points.txt
+src/eur_lex_miner.egg-info/requires.txt
+src/eur_lex_miner.egg-info/top_level.txt
+src/eurovoc_miner/__init__.py
+src/eurovoc_miner/cli.py
+src/eurovoc_miner/config.py
+src/eurovoc_miner/core.py
+src/eurovoc_miner/fetcher.py
+src/eurovoc_miner/parsers.py
+src/eurovoc_miner/processor.py

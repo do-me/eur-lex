@@ -1,5 +1,5 @@
 Metadata-Version: 2.4
-Name: eurovoc-miner
+Name: eur_lex_miner
 Version: 0.1.0
 Summary: Fast extraction of European Commission documents and Eurovoc concepts
 Requires-Python: >=3.13
@@ -38,10 +38,10 @@ uv sync
 Run the miner using the CLI entry point:
 ```bash
 # General usage for all languages
-uv run eurovoc-miner dataset_ --days 10
+uv run eur_lex_miner dataset_ --days 10
 
 # Specific language filtering
-uv run eurovoc-miner dataset_ --days 5 --lang ENG
+uv run eur_lex_miner dataset_ --days 5 --lang ENG
 ```
 
 The output will be saved as daily `.parquet` files in the `files/` directory.

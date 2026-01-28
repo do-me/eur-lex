@@ -1,5 +1,5 @@
 [project]
-name = "eurovoc-miner"
+name = "eur_lex_miner"
 version = "0.1.0"
 description = "Fast extraction of European Commission documents and Eurovoc concepts"
 readme = "README.md"
@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.scripts]
-eurovoc-miner = "eurovoc_miner.cli:run"
+eur_lex_miner = "eurovoc_miner.cli:run"
 
 [build-system]
 requires = ["setuptools>=61.0"]

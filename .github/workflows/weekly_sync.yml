@@ -1,0 +1,42 @@
+name: Weekly Sync to Hugging Face
+
+on:
+  schedule:
+    # 03:00 UTC = 04:00 CET (Standard Time)
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+jobs:
+  miner-and-upload:
+    runs-on: ubuntu-latest
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_DATASET: do-me/EUR-LEX
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: uv sync
+
+      # The miner saves files to ./files/ by default (per your config.py)
+      - name: Run Miner (Last 14 days)
+        run: |
+          uv run eur_lex_miner data_ --lookback 14 --unique-on celex --lang ENG
+
+      - name: Run Upload Script
+        # Installs huggingface_hub temporarily and runs the script
+        run: uv run --with huggingface_hub python scripts/upload_to_hf.py
