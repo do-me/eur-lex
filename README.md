@@ -27,8 +27,8 @@ This repo improves on all of these points and provides a convenient github actio
 ## Installation
 Ensure you have `uv` installed, then:
 ```bash
-git clone <repo-url>
-cd Eurovoc_2025
+git clone https://github.com/do-me/eur-lex.git
+cd eur-lex
 uv sync
 ```
 
