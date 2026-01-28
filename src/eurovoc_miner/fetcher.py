@@ -50,19 +50,18 @@ def get_eurovoc_terms_and_id():
         
     return eurovoc_terms_and_id
 
-def get_sparql_query(d, lang=None):
-    """Generate SPARQL query from template."""
+def get_sparql_query(d, lang=None, days=1):
+    """Render the SPARQL query template."""
     start = d.strftime('%Y-%m-%d')
-    end = (d + datetime.timedelta(days=2)).strftime('%Y-%m-%d')
-    
-    env = jinja2.Environment(loader=jinja2.FileSystemLoader(TEMPLATES_DIR))
-    template = env.get_template('query.j2')
+    end = (d + datetime.timedelta(days=days)).strftime('%Y-%m-%d')
+    environment = jinja2.Environment(loader=jinja2.FileSystemLoader(TEMPLATES_DIR))
+    template = environment.get_template("query.j2")
     return template.render(start=start, end=end, lang=lang)
 
-def get_json_response(d, lang=None):
+def get_json_response(d, lang=None, days=1):
     """Execute SPARQL query and return JSON response."""
     headers = {'User-Agent': USER_AGENT}
-    query = get_sparql_query(d, lang=lang)
+    query = get_sparql_query(d, lang=lang, days=days)
     params = {
         "default-graph-uri": "",
         "query": query,

@@ -63,7 +63,7 @@ graph ?lgc { ?lg dc:identifier ?langIdentifier .
  { SELECT DISTINCT ?work WHERE {
     ?work rdf:type ?resType .
     ?work cdm:work_date_document ?date .
-    FILTER( ?date > "{{ start }}"^^xsd:date) .
+    FILTER( ?date >= "{{ start }}"^^xsd:date) .
  FILTER( ?date < "{{ end }}"^^xsd:date)
     ?work cdm:work_id_document ?workId_.
 }

@@ -8,6 +8,7 @@ A high-performance mining tool for extracting text and semantic concepts from th
 - **Vectorized Preprocessing**: Ultra-fast text cleaning powered by `Polars`.
 - **Modular Design**: Clean separation of concerns following modern Python package standards.
 - **Robust Caching**: Joblib-powered caching to avoid redundant downloads and expensive parsing.
+- **Batch Discovery**: Tweak network efficiency with the `--days-per-request` flag to fetch metadata for multiple days in one SPARQL call.
 - **Rich Metadata Collection**: Automatically extracts:
   - CELEX numbers for legal uniquely indexing.
   - Institution/Author labels (e.g., "European Commission").
@@ -34,6 +35,10 @@ uv run eurovoc-miner dataset_ --days 5 --lang ENG
 # Keyword Matching
 # Add boolean columns for specific terms (case-insensitive)
 uv run eurovoc-miner dataset_ --days 5 --lang ENG --keywords "earth observation" copernicus
+
+# Batch Discovery
+# Fetch 60 days of metadata in a single SPARQL request (faster for large spans)
+uv run eurovoc-miner dataset_ --days 60 --days-per-request 60
 ```
 
 ### Keyword Matching Logic
