@@ -24,3 +24,22 @@ def clean_text_batch(df: pl.DataFrame) -> pl.DataFrame:
         
         #.str.strip_chars()
     )
+
+def match_keywords(df: pl.DataFrame, keywords: list[str]) -> pl.DataFrame:
+    """Add boolean column for each keyword found in 'text'."""
+    if not keywords:
+        return df
+        
+    expressions = []
+    for kw in keywords:
+        # Create a safe column name
+        col_name = f"match_{kw.lower().replace(' ', '_').replace('-', '_')}"
+        # Case-insensitive literal search using regex (?i)
+        # We escape the keyword to ensure special characters don't break regex
+        import re
+        pattern = f"(?i){re.escape(kw)}"
+        expressions.append(
+            pl.col("text").str.contains(pattern).alias(col_name)
+        )
+    
+    return df.with_columns(expressions)

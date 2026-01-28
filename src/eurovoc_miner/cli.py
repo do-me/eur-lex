@@ -4,7 +4,7 @@ import os
 import polars as pl
 import logging
 from .core import get_docs_text
-from .processor import clean_text_batch
+from .processor import clean_text_batch, match_keywords
 from .config import FILES_DIR, SCHEMA
 
 log = logging.getLogger(__name__)
@@ -14,6 +14,7 @@ def run():
     parser.add_argument('output_prefix', type=str, help='Prefix for the output Parquet files')
     parser.add_argument('--days', type=int, default=1, help='Number of days to look back')
     parser.add_argument('--lang', type=str, help='Filter by language code (e.g. ENG, SPA, FRA)')
+    parser.add_argument('--keywords', nargs='+', help='Optional keywords to match in full text')
     args = parser.parse_args()
 
     lang_filter = args.lang.upper() if args.lang else None
@@ -27,10 +28,13 @@ def run():
             if not docs:
                 # Create empty DataFrame with schema
                 df = pl.DataFrame([], schema=SCHEMA)
+                # Still add keyword columns to empty DF to keep schema consistent
+                df = match_keywords(df, args.keywords)
                 log.info(f"∅ No documents for {date}, creating empty file.")
             else:
                 df = pl.DataFrame(docs, schema=SCHEMA)
                 df = clean_text_batch(df)
+                df = match_keywords(df, args.keywords)
 
             lang_suffix = f"_{args.lang.lower()}" if args.lang else ""
             filename = f"{args.output_prefix}{date}{lang_suffix}.parquet"

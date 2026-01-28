@@ -25,7 +25,19 @@ uv run eurovoc-miner dataset_ --days 10
 
 # Specific language filtering
 uv run eurovoc-miner dataset_ --days 5 --lang ENG
+
+# Keyword Matching
+# Add boolean columns for specific terms (case-insensitive)
+uv run eurovoc-miner dataset_ --days 5 --lang ENG --keywords "earth observation" copernicus
 ```
+
+### Keyword Matching Logic
+When using the `--keywords` flag:
+- **Compound Terms**: Wrap terms with spaces in quotes (e.g., `"earth observation"`).
+- **Auto-Sanitization**: Keywords are converted to clean snake_case column names (e.g., `match_earth_observation`).
+- **Performance**: Matching is performed using vectorized Polars operations.
+- **Consistency**: Empty daily files still contain the keyword columns to maintain schema across all Parquet files.
+
 
 The output will be saved as daily `.parquet` files in the `files/` directory.
 
