@@ -151,6 +151,15 @@ uv run eur_lex_miner dataset_ --days 30 --days-per-request 1 --lang ENG  56.75s 
 
 </details>
 
+### Manual Upload to HF
+For first run: 
+
+```zsh
+export HF_TOKEN="your_token_here"
+export HF_DATASET="do-me/EUR-LEX"
+
+uv run --with huggingface_hub python scripts/upload_to_hf.py
+```
 
 ### Keyword Matching Logic
 When using the `--keywords` flag:
