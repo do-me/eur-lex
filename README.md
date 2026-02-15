@@ -2,6 +2,8 @@
 
 A high-performance mining tool for extracting text and semantic concepts from the European Commission's Cellar database.
 
+**Access data on HuggingFace: https://huggingface.co/datasets/do-me/EUR-LEX**
+
 Originally based on [EuropeanParliament/Eurovoc_2025](https://huggingface.co/datasets/EuropeanParliament/Eurovoc_2025) and [EuropeanParliament/Eurovoc](https://huggingface.co/datasets/EuropeanParliament/Eurovoc) but improved and extended for various reasons: 
 - [line breaks are not included](https://huggingface.co/datasets/EuropeanParliament/Eurovoc/discussions/5) that are quite important for semantic chunking approaches and RAG 
 - the preprocessing was way too aggressive and removed too much information
