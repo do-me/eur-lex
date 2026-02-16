@@ -35,7 +35,7 @@ jobs:
       # The miner saves files to ./files/ by default (per your config.py)
       - name: Run Miner (Last 14 days)
         run: |
-          uv run eur_lex_miner data_ --lookback 14 --unique-on celex --lang ENG
+          uv run eur_lex_miner dataset_ --lookback 14 --unique-on celex --lang ENG
 
       - name: Run Upload Script
         # Installs huggingface_hub temporarily and runs the script
