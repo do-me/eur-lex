@@ -17,13 +17,15 @@ def upload():
     print(f"Logging in and uploading files from {local_folder_path} to {dataset_id}...")
     api = HfApi(token=token)
     
+    # Get current year
+    current_year = datetime.date.today().year
+
     # 3. Upload Folder
-    # path_in_repo="files" creates a 'files' directory in the HF repo
     api.upload_folder(
         folder_path=local_folder_path,
         repo_id=dataset_id,
         repo_type="dataset",
-        path_in_repo="files", 
+        path_in_repo=f"files/{current_year}",
         ignore_patterns=[".gitkeep", ".DS_Store"],
         commit_message=f"Weekly update: {datetime.date.today()}"
     )
