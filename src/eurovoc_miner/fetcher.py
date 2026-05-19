@@ -31,7 +31,10 @@ def get_eurovoc_terms_and_id():
     session = get_session()
     response = session.get(
         EUROVOC_XML_URL,
-        headers={'Accept': 'application/xml', 'Accept-Language': 'en', 'User-Agent': USER_AGENT}
+        headers={'Accept': 'application/xml', 'Accept-Language': 'en', 'User-Agent': USER_AGENT},
+        # (connect, read) seconds. Bounds an individual hung request so a slow
+        # Publications Office endpoint cannot stall the whole job indefinitely.
+        timeout=(10, 120),
     )
     data = xmltodict.parse(response.content)
     
@@ -72,7 +75,10 @@ def get_json_response(d, lang=None, days=1):
     }
 
     session = get_session()
-    response = session.get(SPARQL_ENDPOINT, headers=headers, params=params)
+    # (connect, read) seconds. Fail fast when the SPARQL endpoint hangs — the
+    # April 2026 weekly runs burned the full 6h GH Actions budget on calls that
+    # never returned because no read timeout was set here.
+    response = session.get(SPARQL_ENDPOINT, headers=headers, params=params, timeout=(10, 180))
     response.raise_for_status()
     return response.json()
 

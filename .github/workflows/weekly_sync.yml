@@ -9,6 +9,9 @@ on:
 jobs:
   miner-and-upload:
     runs-on: ubuntu-latest
+    # Cap the job well below the GH Actions 6h default. If a slow Cellar endpoint
+    # makes the miner hang, we fail fast and the next weekly run picks up the gaps.
+    timeout-minutes: 30
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
       HF_DATASET: do-me/EUR-LEX
@@ -32,10 +35,48 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      # The miner saves files to ./files/ by default (per your config.py)
-      - name: Run Miner (Last 14 days)
+      # Seed ./files/ with the current year's existing parquets from HF so the
+      # backfill step can see which dates are already present. HF caches by
+      # content hash, so this only transfers the bytes for files we don't have.
+      # Steady-state this is one full year (~80 MB); the upload at the end will
+      # be a no-op for unchanged files (same content hash).
+      - name: Seed local files from HF (current year)
+        run: |
+          export YEAR=$(date -u +%Y)
+          echo "Seeding files/$YEAR/ from $HF_DATASET"
+          uv run --with huggingface_hub python -c "
+          import os
+          from huggingface_hub import snapshot_download
+          year = os.environ['YEAR']
+          snapshot_download(
+              repo_id=os.environ['HF_DATASET'],
+              repo_type='dataset',
+              local_dir='.',
+              allow_patterns=[f'files/{year}/*.parquet'],
+          )
+          "
+
+      # Refresh the most recent 14 days every week so late-arriving documents
+      # (Cellar back-fills its index) get picked up. Identical to prior behaviour.
+      - name: Refresh recent window (last 14 days)
         run: |
           uv run eur_lex_miner dataset_ --lookback 14 --unique-on celex --lang ENG
+
+      # Self-healing backfill: re-mine any date in the [60d, 14d] window that
+      # is either missing on disk or has a 0-row parquet. The TO bound (14 days
+      # ago) is exactly contiguous with the lookback step above, which covers
+      # today-13 .. today. Steady-state this is a near-noop (everything seeded
+      # already has rows); after an outage it back-fills the gap over as many
+      # weekly runs as needed, bounded by the job timeout above.
+      - name: Self-healing backfill (14-60 days back)
+        run: |
+          FROM=$(date -u -d '60 days ago' +%Y-%m-%d)
+          TO=$(date -u -d '14 days ago' +%Y-%m-%d)
+          echo "Backfilling missing/empty parquets in [$FROM .. $TO]"
+          uv run eur_lex_miner dataset_ \
+            --backfill-missing --retry-empty \
+            --from-date "$FROM" --to-date "$TO" \
+            --lang ENG --unique-on celex
 
       - name: Run Upload Script
         # Installs huggingface_hub temporarily and runs the script
