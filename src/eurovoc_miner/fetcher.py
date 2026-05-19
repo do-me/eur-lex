@@ -15,9 +15,18 @@ memory = Memory(CACHE_DIR, verbose=0)
 def get_session():
     session = requests.Session()
     retry = Retry(
-        total=5,
+        total=3,
+        connect=3,
+        # Don't retry on read timeouts. If the server accepted the request but
+        # never responded, retrying the same expensive SPARQL query just burns
+        # the same time again — observed to multiply a 180s timeout into 15min
+        # of compounded retries during a slow Publications Office period.
+        read=False,
         backoff_factor=1,
         status_forcelist=[500, 502, 503, 504],
+        # Avoid raising for retried status codes; let the caller see the final
+        # response and decide.
+        raise_on_status=False,
     )
     adapter = HTTPAdapter(max_retries=retry)
     session.mount('http://', adapter)
@@ -77,8 +86,10 @@ def get_json_response(d, lang=None, days=1):
     session = get_session()
     # (connect, read) seconds. Fail fast when the SPARQL endpoint hangs — the
     # April 2026 weekly runs burned the full 6h GH Actions budget on calls that
-    # never returned because no read timeout was set here.
-    response = session.get(SPARQL_ENDPOINT, headers=headers, params=params, timeout=(10, 180))
+    # never returned because no read timeout was set here. 90s is generous for
+    # any healthy day-window query (typically <5s) and tight enough that 14
+    # stuck dates fit comfortably inside the 30-min job cap.
+    response = session.get(SPARQL_ENDPOINT, headers=headers, params=params, timeout=(10, 90))
     response.raise_for_status()
     return response.json()
 
