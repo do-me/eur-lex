@@ -56,19 +56,15 @@ jobs:
           )
           "
 
-      # Refresh the most recent 14 days every week so late-arriving documents
-      # (Cellar back-fills its index) get picked up. Identical to prior behaviour.
-      - name: Refresh recent window (last 14 days)
-        run: |
-          uv run eur_lex_miner dataset_ --lookback 14 --unique-on celex --lang ENG
-
-      # Self-healing backfill: re-mine any date in the [60d, 14d] window that
-      # is either missing on disk or has a 0-row parquet. The TO bound (14 days
-      # ago) is exactly contiguous with the lookback step above, which covers
-      # today-13 .. today. Steady-state this is a near-noop (everything seeded
-      # already has rows); after an outage it back-fills the gap over as many
-      # weekly runs as needed, bounded by the job timeout above.
+      # Self-healing backfill runs FIRST: re-mine any date in the [60d, 14d]
+      # window that is either missing on disk or has a 0-row parquet. The TO
+      # bound (14 days ago) is exactly contiguous with the lookback step below,
+      # which covers today-13 .. today. Steady-state this is a near-noop
+      # (everything seeded already has rows); after an outage it back-fills the
+      # gap over as many weekly runs as needed. Higher priority than lookback
+      # because missing old dates can only be recovered here.
       - name: Self-healing backfill (14-60 days back)
+        timeout-minutes: 15
         run: |
           FROM=$(date -u -d '60 days ago' +%Y-%m-%d)
           TO=$(date -u -d '14 days ago' +%Y-%m-%d)
@@ -78,6 +74,18 @@ jobs:
             --from-date "$FROM" --to-date "$TO" \
             --lang ENG --unique-on celex
 
+      # Refresh the most recent 14 days every week so late-arriving documents
+      # (Cellar back-fills its index) get picked up. Runs even if the backfill
+      # step was cancelled by its own timeout.
+      - name: Refresh recent window (last 14 days)
+        if: always()
+        timeout-minutes: 10
+        run: |
+          uv run eur_lex_miner dataset_ --lookback 14 --unique-on celex --lang ENG
+
+      # Always upload whatever parquets are on disk, even if previous steps
+      # were cancelled by their timeouts. Partial progress is still progress —
+      # the next weekly run picks up the remaining gaps.
       - name: Run Upload Script
-        # Installs huggingface_hub temporarily and runs the script
+        if: always()
         run: uv run --with huggingface_hub python scripts/upload_to_hf.py
