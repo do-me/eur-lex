@@ -65,6 +65,8 @@ jobs:
       # because missing old dates can only be recovered here.
       - name: Self-healing backfill (14-60 days back)
         timeout-minutes: 15
+        # A timed-out backfill is partial progress, not a job failure.
+        continue-on-error: true
         run: |
           FROM=$(date -u -d '60 days ago' +%Y-%m-%d)
           TO=$(date -u -d '14 days ago' +%Y-%m-%d)
@@ -80,6 +82,8 @@ jobs:
       - name: Refresh recent window (last 14 days)
         if: always()
         timeout-minutes: 10
+        # A timed-out lookback is partial progress, not a job failure.
+        continue-on-error: true
         run: |
           uv run eur_lex_miner dataset_ --lookback 14 --unique-on celex --lang ENG
 

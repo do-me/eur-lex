@@ -11,12 +11,39 @@ from .config import FILES_DIR, SCHEMA
 log = logging.getLogger(__name__)
 
 
+def _safe_write_parquet(df, output_path, date):
+    """Write df to output_path, but refuse to overwrite a non-empty parquet
+    with an empty one. Returns the path actually used and the row count now
+    on disk (which may differ from len(df) if we preserved an older non-empty
+    file).
+
+    Defensive against transient Cellar partial-outages where the SPARQL
+    endpoint returns a successful response with 0 bindings (or where some
+    other failure mode produces an empty result) for a date that already has
+    real data on disk from a previous run.
+    """
+    import pyarrow.parquet as pq
+    if len(df) == 0 and os.path.exists(output_path):
+        try:
+            existing_rows = pq.ParquetFile(output_path).metadata.num_rows
+        except Exception:
+            existing_rows = 0
+        if existing_rows > 0:
+            log.warning(f"Preserving existing non-empty parquet for {date} "
+                        f"({existing_rows} rows on disk); refusing to overwrite "
+                        f"with an empty result.")
+            return output_path, existing_rows
+    df.write_parquet(output_path)
+    return output_path, len(df)
+
+
 def _mine_one_day(date, output_prefix, lang_filter, lang_suffix, keywords,
                   save_only_kw, unique_on):
-    """Mine a single date and write its parquet. Returns ('rows'|'empty', n_rows, path).
+    """Mine a single date and write its parquet. Returns ('rows'|'empty'|'preserved', n_rows, path).
 
     Mirrors the original per-day code path (days=1) so backfilled files are
-    schema-identical to weekly-run output.
+    schema-identical to weekly-run output. SPARQL failures propagate as
+    exceptions (no more silent empty-on-error).
     """
     docs = list(get_docs_text(date, lang=lang_filter, days=1))
     if not docs:
@@ -44,8 +71,10 @@ def _mine_one_day(date, output_prefix, lang_filter, lang_suffix, keywords,
     year_dir = os.path.join(FILES_DIR, str(date.year))
     os.makedirs(year_dir, exist_ok=True)
     output_path = os.path.join(year_dir, filename)
-    df.write_parquet(output_path)
-    return status, len(df), output_path
+    written_path, n_on_disk = _safe_write_parquet(df, output_path, date)
+    if status == 'empty' and n_on_disk > 0:
+        status = 'preserved'
+    return status, n_on_disk, written_path
 
 
 def _scan_existing(output_prefix, lang_suffix):
@@ -152,7 +181,7 @@ def _run_backfill(args, lang_filter, lang_suffix):
         log.info("Nothing to do.")
         return
 
-    summary = {'rows': 0, 'empty': 0, 'errors': 0}
+    summary = {'rows': 0, 'empty': 0, 'preserved': 0, 'errors': 0}
     fetched_with_rows = []
     fetched_empty = []
     errors = []
@@ -165,6 +194,8 @@ def _run_backfill(args, lang_filter, lang_suffix):
             if status == 'rows':
                 fetched_with_rows.append((date, n, path))
                 log.info(f"✓ Backfilled {date} [{reason}] -> {n} records ({path})")
+            elif status == 'preserved':
+                log.info(f"⏭ Backfilled {date} [{reason}] -> SPARQL returned 0 but {n} rows already on disk; preserved.")
             else:
                 fetched_empty.append((date, path))
                 log.info(f"∅ Backfilled {date} [{reason}] -> empty (SPARQL returned 0 docs)")
@@ -178,6 +209,7 @@ def _run_backfill(args, lang_filter, lang_suffix):
     log.info(f"  Attempted   : {len(to_fetch)}")
     log.info(f"  With rows   : {summary['rows']}")
     log.info(f"  Still empty : {summary['empty']}")
+    log.info(f"  Preserved   : {summary['preserved']}  (kept existing non-empty on a 0-row fetch)")
     log.info(f"  Errors      : {summary['errors']}")
     if errors:
         log.info("  Errored dates:")
@@ -235,11 +267,13 @@ def _run_lookback(args, lang_filter, lang_suffix):
             os.makedirs(year_dir, exist_ok=True)
             output_path = os.path.join(year_dir, filename)
 
-            df.write_parquet(output_path)
-            if not docs:
-                log.info(f"✓ Saved empty file to {output_path}")
+            written_path, n_on_disk = _safe_write_parquet(df, output_path, date)
+            if not docs and n_on_disk > 0:
+                log.info(f"⏭ Preserved existing {n_on_disk} records at {written_path}")
+            elif not docs:
+                log.info(f"✓ Saved empty file to {written_path}")
             else:
-                log.info(f"✓ Saved {len(df)} records to {output_path}")
+                log.info(f"✓ Saved {len(df)} records to {written_path}")
 
         except Exception as e:
             batch_desc = f"{date}" if current_batch_days == 1 else f"{date} to {date + datetime.timedelta(days=current_batch_days-1)}"
