@@ -1,12 +1,15 @@
 import argparse
 import datetime
+import logging
 import os
 import re
+
 import polars as pl
-import logging
-from .core import get_docs_text
-from .processor import clean_text_batch, match_keywords, filter_keyword_matches
+
 from .config import FILES_DIR, SCHEMA
+from .core import get_docs_text
+from .miss_log import record_attempt
+from .processor import clean_text_batch, filter_keyword_matches, match_keywords
 
 log = logging.getLogger(__name__)
 
@@ -190,6 +193,7 @@ def _run_backfill(args, lang_filter, lang_suffix):
             status, n, path = _mine_one_day(
                 date, args.output_prefix, lang_filter, lang_suffix,
                 args.keywords, args.save_only_keyword_matches, args.unique_on)
+            record_attempt(date)
             summary[status] += 1
             if status == 'rows':
                 fetched_with_rows.append((date, n, path))
@@ -200,6 +204,7 @@ def _run_backfill(args, lang_filter, lang_suffix):
                 fetched_empty.append((date, path))
                 log.info(f"∅ Backfilled {date} [{reason}] -> empty (SPARQL returned 0 docs)")
         except Exception as exc:
+            record_attempt(date, exc)
             summary['errors'] += 1
             errors.append((date, repr(exc)))
             log.error(f"✗ Failed to backfill {date} [{reason}]: {exc}")
@@ -268,6 +273,7 @@ def _run_lookback(args, lang_filter, lang_suffix):
             output_path = os.path.join(year_dir, filename)
 
             written_path, n_on_disk = _safe_write_parquet(df, output_path, date)
+            record_attempt(date)
             if not docs and n_on_disk > 0:
                 log.info(f"⏭ Preserved existing {n_on_disk} records at {written_path}")
             elif not docs:
@@ -276,6 +282,7 @@ def _run_lookback(args, lang_filter, lang_suffix):
                 log.info(f"✓ Saved {len(df)} records to {written_path}")
 
         except Exception as e:
+            record_attempt(date, e)
             batch_desc = f"{date}" if current_batch_days == 1 else f"{date} to {date + datetime.timedelta(days=current_batch_days-1)}"
             log.error(f"Failed to process {batch_desc}: {e}")
 

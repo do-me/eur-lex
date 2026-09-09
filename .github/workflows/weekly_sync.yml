@@ -16,7 +16,7 @@ jobs:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
       HF_DATASET: do-me/EUR-LEX
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - name: Checkout code
@@ -86,6 +86,21 @@ jobs:
         continue-on-error: true
         run: |
           uv run eur_lex_miner dataset_ --lookback 14 --unique-on celex --lang ENG
+
+      # The miner keeps this file to unresolved failures only. Both the
+      # backfill and 14-day refresh update it after every attempted date.
+      - name: Persist missing-date log
+        if: always()
+        run: |
+          if git diff --quiet -- missing_dates.csv; then
+            echo "Missing-date log unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add missing_dates.csv
+          git commit -m "Update missing-date log [skip ci]"
+          git push
 
       # Always upload whatever parquets are on disk, even if previous steps
       # were cancelled by their timeouts. Partial progress is still progress —

@@ -174,6 +174,12 @@ When using the `--keywords` flag:
 
 The output will be saved as daily `.parquet` files in the `files/` directory.
 
+### Missing-date log
+
+`missing_dates.csv` lists dates whose latest mining attempt failed before a
+Parquet could be written. Successful retries remove the date. The weekly
+workflow updates the file from both its backfill and 14-day refresh steps.
+
 ## Project Structure
 - `src/eurovoc_miner/`: Core logic and CLI.
 - `files/`: Output data storage.
