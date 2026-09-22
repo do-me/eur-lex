@@ -1,0 +1,49 @@
+name: Experimental Roaring Search Index
+
+on:
+  workflow_run:
+    workflows: ['Weekly Sync to Hugging Face']
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Bootstrap the archive once, or update recent years only'
+        required: true
+        default: update
+        type: choice
+        options: [update, bootstrap]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: experimental-roaring-index
+  cancel-in-progress: false
+
+jobs:
+  index:
+    if: >-
+      vars.ROARING_INDEX_ENABLED != 'false' &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      ROARING_BUILDER_REF: e18f7edd1f9ba4c8b1a6fdb5f5523bec1f85447a
+      ROARING_MODE: ${{ github.event.inputs.mode || 'update' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: latest
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build and publish isolated index branch
+        run: |
+          uv run --no-project --python 3.12 \
+            --with "roaring-static-search[parquet] @ git+https://github.com/do-me/roaring-static-search.git@${ROARING_BUILDER_REF}" \
+            --with "huggingface_hub[hf_xet]>=1.15,<2" \
+            python scripts/roaring_index.py \
+              --mode "$ROARING_MODE" \
+              --builder-revision "$ROARING_BUILDER_REF"
