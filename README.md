@@ -166,11 +166,12 @@ uv run --with huggingface_hub python scripts/upload_to_hf.py
 ### Compact Parquet in the weekly job
 
 The weekly workflow sets `EURLEX_COMPACT_PARQUET=1`. For nonempty daily files,
-this writes Parquet 1.0 with Zstandard compression and statistics on every
-column except `text`. Full legal texts make min/max statistics unusually large;
-excluding just that column leaves the rows, schema, and other column statistics
-intact. Empty files retain the original Polars writer. The write is staged and
-atomically replaces an existing daily file only after the new file is readable.
+this uses the existing Polars writer with `statistics=False`. Full legal texts
+make min/max statistics unusually large. These daily files normally have a
+single row group, so disabling statistics does not change the rows or schema,
+and has little effect on row-group pruning. Empty files retain the original
+writer settings. The write is staged and atomically replaces an existing daily
+file only after the new file is readable.
 
 Unset the variable (or set it to `0`) to restore the original writer. This
 setting affects newly mined/refreshed dates only; it does not rewrite historical

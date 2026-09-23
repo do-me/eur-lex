@@ -42,7 +42,7 @@ def test_compact_writer_preserves_every_value_and_schema(monkeypatch, tmp_path: 
         for index in range(pq.ParquetFile(compact).metadata.row_group(0).num_columns)
     )}
     assert columns["text"].statistics is None
-    assert columns["date"].statistics is not None
+    assert columns["date"].statistics is None
     assert compact.stat().st_size < baseline.stat().st_size * 0.9
     assert list(tmp_path.glob("*.tmp")) == []
 
@@ -65,3 +65,26 @@ def test_unset_flag_keeps_polars_writer(monkeypatch, tmp_path: Path):
     frame = sample_frame()
     _safe_write_parquet(frame, target, datetime.date(2026, 1, 1))
     assert pq.ParquetFile(target).metadata.created_by == "Polars"
+
+
+def test_failed_compact_write_leaves_existing_file_intact(monkeypatch, tmp_path: Path):
+    monkeypatch.setenv("EURLEX_COMPACT_PARQUET", "1")
+    target = tmp_path / "day.parquet"
+    frame = sample_frame()
+    _safe_write_parquet(frame, target, datetime.date(2026, 1, 1))
+    before = target.read_bytes()
+
+    class FailingFrame:
+        def __len__(self):
+            return len(frame)
+
+        def write_parquet(self, path, **kwargs):
+            Path(path).write_bytes(b"partial")
+            raise RuntimeError("simulated writer failure")
+
+    import pytest
+
+    with pytest.raises(RuntimeError, match="simulated writer failure"):
+        _safe_write_parquet(FailingFrame(), target, datetime.date(2026, 1, 1))
+    assert target.read_bytes() == before
+    assert list(tmp_path.glob("*.tmp")) == []
