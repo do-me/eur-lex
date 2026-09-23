@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'Bootstrap the archive once, or update recent years only'
+        description: 'Bootstrap immutable five-year bands once, or update recent years only'
         required: true
         default: update
         type: choice

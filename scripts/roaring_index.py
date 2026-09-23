@@ -26,6 +26,7 @@ DATASET = "do-me/EUR-LEX"
 INDEX_BRANCH = "search-index"
 INDEX_ROOT = "search/roaring/v1"
 COLUMNS = ["celex", "text", "title", "date", "url"]
+HISTORICAL_BAND_YEARS = 5
 
 
 def source_files(
@@ -52,6 +53,33 @@ def archive_source_files(api: HfApi, revision: str, *, before_year: int) -> list
     return [entry for entry in source_files(api, revision, expand=False)
             if entry.path.split("/")[1].isdigit()
             and int(entry.path.split("/")[1]) < before_year]
+
+
+def entry_year(entry: RepoFile) -> int:
+    part = entry.path.split("/")[1]
+    if not part.isdigit():
+        raise ValueError(f"Source path does not contain a year: {entry.path}")
+    return int(part)
+
+
+def historical_bands(
+    files: list[RepoFile], *, before_year: int,
+) -> list[tuple[str, int, int, list[RepoFile]]]:
+    """Group immutable history into five-year bands counted back from the cutoff."""
+    grouped: dict[tuple[int, int], list[RepoFile]] = {}
+    for entry in files:
+        year = entry_year(entry)
+        distance = before_year - 1 - year
+        if distance < 0:
+            raise ValueError(f"Historical source is not before {before_year}: {entry.path}")
+        band_end = before_year - 1 - (distance // HISTORICAL_BAND_YEARS) * HISTORICAL_BAND_YEARS
+        band_start = band_end - HISTORICAL_BAND_YEARS + 1
+        grouped.setdefault((band_start, band_end), []).append(entry)
+    return [
+        (f"years{start}-{end}", min(map(entry_year, selected)),
+         max(map(entry_year, selected)), sorted(selected, key=lambda entry: entry.path))
+        for (start, end), selected in sorted(grouped.items())
+    ]
 
 
 def file_fingerprint(files: list[RepoFile]) -> str:
@@ -91,11 +119,8 @@ def build_and_upload(
     with tempfile.TemporaryDirectory(prefix=f"roaring-{name}-") as scratch:
         root = Path(scratch) / "source"
         root.mkdir()
-        if name == "archive":
-            patterns = [f"files/{year}/*.parquet" for year in sorted(
-                {entry.path.split("/")[1] for entry in files})]
-        else:
-            patterns = [f"files/{name.removeprefix('year')}/*.parquet"]
+        patterns = [f"files/{year}/*.parquet" for year in sorted(
+            {entry.path.split("/")[1] for entry in files})]
         snapshot_download(
             DATASET, repo_type="dataset", revision=source_revision,
             local_dir=root, allow_patterns=patterns, token=token, max_workers=8,
@@ -153,9 +178,16 @@ def publish(mode: str, builder_revision: str, *, now: datetime | None = None) ->
     fingerprints = {} if old is None else dict(old.get("yearFingerprints", {}))
     if mode == "bootstrap":
         archive_files = archive_source_files(api, source_revision, before_year=min(affected))
-        archive_url = build_and_upload(api, token, source_revision, builder_revision,
-                                       archive_files, "archive")
-        shards.append({"name": "archive", "url": archive_url})
+        for name, year_start, year_end, selected in historical_bands(
+            archive_files, before_year=min(affected),
+        ):
+            shard_url = build_and_upload(
+                api, token, source_revision, builder_revision, selected, name,
+            )
+            shards.append({
+                "name": name, "url": shard_url,
+                "yearStart": year_start, "yearEnd": year_end,
+            })
 
     changed = mode == "bootstrap"
     for affected_year in affected:
@@ -170,16 +202,22 @@ def publish(mode: str, builder_revision: str, *, now: datetime | None = None) ->
         shard_url = build_and_upload(api, token, source_revision, builder_revision,
                                      year_files, name)
         shards = [item for item in shards if item["name"] != name]
-        shards.append({"name": name, "url": shard_url})
+        shards.append({
+            "name": name, "url": shard_url,
+            "yearStart": affected_year, "yearEnd": affected_year,
+        })
         fingerprints[str(affected_year)] = fingerprint
         changed = True
 
     if not changed:
         print(json.dumps({"event": "no-op", "sourceRevision": source_revision}), flush=True)
         return old
-    shards.sort(key=lambda item: -1 if item["name"] == "archive" else int(item["name"].removeprefix("year")))
+    shards.sort(key=lambda item: (
+        item.get("yearStart", -1), item.get("yearEnd", -1), item["name"],
+    ))
     manifest = {
         "format": FORMAT,
+        "layoutVersion": 2,
         "sourceRevision": source_revision,
         "builderRevision": builder_revision,
         "yearFingerprints": fingerprints,

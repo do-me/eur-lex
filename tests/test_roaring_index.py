@@ -45,6 +45,16 @@ def test_archive_listing_uses_fast_unexpanded_tree(monkeypatch):
     assert calls == [("revision", None, False)]
 
 
+def test_history_is_split_into_five_year_bands_from_cutoff():
+    files = [source(f"files/{year}/a.parquet", str(year)) for year in range(2014, 2026)]
+    bands = roaring_index.historical_bands(files, before_year=2026)
+    assert [(name, start, end) for name, start, end, _ in bands] == [
+        ("years2011-2015", 2014, 2015),
+        ("years2016-2020", 2016, 2020),
+        ("years2021-2025", 2021, 2025),
+    ]
+
+
 def test_bootstrap_keeps_affected_previous_year_out_of_archive(monkeypatch):
     api = FakeApi("test")
     files = [source("files/2025/a.parquet", "one"), source("files/2026/b.parquet", "two"),
@@ -62,11 +72,16 @@ def test_bootstrap_keeps_affected_previous_year_out_of_archive(monkeypatch):
     monkeypatch.setattr(roaring_index, "build_and_upload", fake_build)
     result = roaring_index.publish("bootstrap", "builder", now=datetime(2027, 1, 10, tzinfo=timezone.utc))
     assert built == [
-        ("archive", ["files/2025/a.parquet"]),
+        ("years2021-2025", ["files/2025/a.parquet"]),
         ("year2026", ["files/2026/b.parquet"]),
         ("year2027", ["files/2027/c.parquet"]),
     ]
-    assert [item["name"] for item in result["shards"]] == ["archive", "year2026", "year2027"]
+    assert result["shards"] == [
+        {"name": "years2021-2025", "url": "revisions/years2021-2025/shard.json", "yearStart": 2025, "yearEnd": 2025},
+        {"name": "year2026", "url": "revisions/year2026/shard.json", "yearStart": 2026, "yearEnd": 2026},
+        {"name": "year2027", "url": "revisions/year2027/shard.json", "yearStart": 2027, "yearEnd": 2027},
+    ]
+    assert result["layoutVersion"] == 2
     assert api.calls[0] == ("branch", "search-index")
     assert api.calls[-1][0] == "manifest"
 
@@ -100,7 +115,8 @@ def test_changed_year_replaces_only_its_shard(monkeypatch):
     monkeypatch.setattr(roaring_index, "build_and_upload", lambda *args: "new/shard.json")
     result = roaring_index.publish("update", "builder", now=datetime(2026, 9, 22, tzinfo=timezone.utc))
     assert result["shards"] == [{"name": "archive", "url": "older/shard.json"},
-                                 {"name": "year2026", "url": "new/shard.json"}]
+                                 {"name": "year2026", "url": "new/shard.json",
+                                  "yearStart": 2026, "yearEnd": 2026}]
     assert api.calls[-1][0] == "manifest"
 
 
