@@ -163,6 +163,21 @@ export HF_DATASET="do-me/EUR-LEX"
 uv run --with huggingface_hub python scripts/upload_to_hf.py
 ```
 
+### Compact Parquet in the weekly job
+
+The weekly workflow sets `EURLEX_COMPACT_PARQUET=1`. For nonempty daily files,
+this writes Parquet 1.0 with Zstandard compression and statistics on every
+column except `text`. Full legal texts make min/max statistics unusually large;
+excluding just that column leaves the rows, schema, and other column statistics
+intact. Empty files retain the original Polars writer. The write is staged and
+atomically replaces an existing daily file only after the new file is readable.
+
+Unset the variable (or set it to `0`) to restore the original writer. This
+setting affects newly mined/refreshed dates only; it does not rewrite historical
+files or change the separately published Roaring index. Before deploying a
+full-corpus rewrite, its source maps and index need to be rebuilt against the
+new immutable Hugging Face revision.
+
 ### Keyword Matching Logic
 When using the `--keywords` flag:
 - **Compound Terms**: Wrap terms with spaces in quotes (e.g., `"earth observation"`).

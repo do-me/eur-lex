@@ -36,7 +36,31 @@ def _safe_write_parquet(df, output_path, date):
                         f"({existing_rows} rows on disk); refusing to overwrite "
                         f"with an empty result.")
             return output_path, existing_rows
-    df.write_parquet(output_path)
+    # Keep the ordinary CLI's existing writer unless the weekly job opts in.
+    # Large, mostly unique legal texts produce enormous and unhelpful Parquet
+    # min/max statistics. Preserve statistics for every other column.
+    if os.environ.get("EURLEX_COMPACT_PARQUET") == "1" and len(df) > 0:
+        import tempfile
+        from pathlib import Path
+
+        target = Path(output_path)
+        with tempfile.NamedTemporaryFile(
+            prefix=f".{target.name}.", suffix=".tmp", dir=target.parent,
+            delete=False,
+        ) as handle:
+            pending = Path(handle.name)
+        try:
+            pq.write_table(
+                df.to_arrow(), pending, compression="zstd", version="1.0",
+                write_statistics=[name for name in df.columns if name != "text"],
+            )
+            if pq.ParquetFile(pending).metadata.num_rows != len(df):
+                raise ValueError(f"Incomplete compact Parquet write: {pending}")
+            os.replace(pending, target)
+        finally:
+            pending.unlink(missing_ok=True)
+    else:
+        df.write_parquet(output_path)
     return output_path, len(df)
 
 
