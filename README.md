@@ -166,18 +166,27 @@ uv run --with huggingface_hub python scripts/upload_to_hf.py
 ### Compact Parquet in the weekly job
 
 The weekly workflow sets `EURLEX_COMPACT_PARQUET=1`. For nonempty daily files,
-this uses the existing Polars writer with `statistics=False`. Full legal texts
-make min/max statistics unusually large. These daily files normally have a
-single row group, so disabling statistics does not change the rows or schema,
-and has little effect on row-group pruning. Empty files retain the original
-writer settings. The write is staged and atomically replaces an existing daily
-file only after the new file is readable.
+this writes Parquet 1.0 with Zstandard compression and statistics on all
+metadata columns, including nested list elements, but not on `text`. Full legal
+texts make min/max statistics unusually large, while metadata statistics can
+help other readers skip irrelevant row groups. Empty files retain the original
+writer. The write is staged and atomically replaces an existing daily file
+only after its row count, schema, and statistic layout are checked.
 
 Unset the variable (or set it to `0`) to restore the original writer. This
 setting affects newly mined/refreshed dates only; it does not rewrite historical
 files or change the separately published Roaring index. Before deploying a
 full-corpus rewrite, its source maps and index need to be rebuilt against the
 new immutable Hugging Face revision.
+
+For an offline historical rebuild from a pinned, verified Hub snapshot:
+
+```bash
+uv run python scripts/compact_hf_snapshot.py --source /path/to/backup --output /path/to/new-candidate
+```
+
+The output path must not exist. The script checks every row and schema and does
+not upload anything to the Hub.
 
 ### Keyword Matching Logic
 When using the `--keywords` flag:

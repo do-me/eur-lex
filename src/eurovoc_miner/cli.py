@@ -37,12 +37,12 @@ def _safe_write_parquet(df, output_path, date):
                         f"with an empty result.")
             return output_path, existing_rows
     # Keep the ordinary CLI's existing layout unless the weekly job opts in.
-    # Large, mostly unique legal texts produce enormous Parquet statistics.
-    # These are daily files with one row group, so column pruning by stats has
-    # little value; disabling them also keeps the original Polars writer.
+    # Full-text statistics are oversized and useless for token search, while
+    # metadata statistics remain valuable for public Parquet consumers.
     if os.environ.get("EURLEX_COMPACT_PARQUET") == "1" and len(df) > 0:
         import tempfile
         from pathlib import Path
+        from .parquet_compact import write_compact_parquet
 
         target = Path(output_path)
         with tempfile.NamedTemporaryFile(
@@ -51,9 +51,7 @@ def _safe_write_parquet(df, output_path, date):
         ) as handle:
             pending = Path(handle.name)
         try:
-            df.write_parquet(pending, statistics=False)
-            if pq.ParquetFile(pending).metadata.num_rows != len(df):
-                raise ValueError(f"Incomplete compact Parquet write: {pending}")
+            write_compact_parquet(df, pending)
             os.replace(pending, target)
         finally:
             pending.unlink(missing_ok=True)
