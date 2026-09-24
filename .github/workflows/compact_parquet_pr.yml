@@ -26,7 +26,7 @@ jobs:
     timeout-minutes: 180
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
-      HF_HOME: ${{ runner.temp }}/eurlex-hf-cache
+      HF_HOME: /tmp/eurlex-hf-cache
       HF_XET_HIGH_PERFORMANCE: '1'
       HF_XET_SHARD_CACHE_SIZE_LIMIT: 1gb
       HF_HUB_DISABLE_PROGRESS_BARS: '1'
