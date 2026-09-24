@@ -1,0 +1,47 @@
+name: Manual compact Parquet PR upload
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_revision:
+        description: Pinned public dataset revision to rebuild
+        required: true
+        type: string
+      pr_number:
+        description: Existing Hugging Face staging PR number
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: compact-parquet-pr-${{ inputs.pr_number }}
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    if: github.repository == 'do-me/eur-lex'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_HOME: ${{ runner.temp }}/eurlex-hf-cache
+      HF_XET_HIGH_PERFORMANCE: '1'
+      HF_XET_SHARD_CACHE_SIZE_LIMIT: 1gb
+      HF_HUB_DISABLE_PROGRESS_BARS: '1'
+      SOURCE_REVISION: ${{ inputs.source_revision }}
+      STAGING_PR: ${{ inputs.pr_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: latest
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Rebuild, stage, and verify five years at a time
+        run: |
+          uv run --with 'huggingface_hub[hf_xet]>=1.15,<2' \
+            python -m scripts.resume_compact_hf_pr \
+              --source-revision "$SOURCE_REVISION" --pr "$STAGING_PR"
