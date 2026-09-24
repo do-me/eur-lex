@@ -36,7 +36,27 @@ def _safe_write_parquet(df, output_path, date):
                         f"({existing_rows} rows on disk); refusing to overwrite "
                         f"with an empty result.")
             return output_path, existing_rows
-    df.write_parquet(output_path)
+    # Keep the ordinary CLI's existing layout unless the weekly job opts in.
+    # Full-text statistics are oversized and useless for token search, while
+    # metadata statistics remain valuable for public Parquet consumers.
+    if os.environ.get("EURLEX_COMPACT_PARQUET") == "1" and len(df) > 0:
+        import tempfile
+        from pathlib import Path
+        from .parquet_compact import write_compact_parquet
+
+        target = Path(output_path)
+        with tempfile.NamedTemporaryFile(
+            prefix=f".{target.name}.", suffix=".tmp", dir=target.parent,
+            delete=False,
+        ) as handle:
+            pending = Path(handle.name)
+        try:
+            write_compact_parquet(df, pending)
+            os.replace(pending, target)
+        finally:
+            pending.unlink(missing_ok=True)
+    else:
+        df.write_parquet(output_path)
     return output_path, len(df)
 
 

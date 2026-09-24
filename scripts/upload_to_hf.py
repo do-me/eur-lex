@@ -27,7 +27,7 @@ def upload():
         repo_id=dataset_id,
         repo_type="dataset",
         path_in_repo="files",
-        ignore_patterns=[".gitkeep", ".DS_Store"],
+        ignore_patterns=[".gitkeep", ".DS_Store", "*.tmp"],
         commit_message=f"Weekly update: {datetime.date.today()}"
     )
     print("Upload complete!")
