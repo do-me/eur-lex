@@ -6,6 +6,15 @@ from pathlib import Path
 DEFAULT_LOG_PATH = Path(__file__).resolve().parents[2] / "missing_dates.csv"
 
 
+def failed_dates(log_path=None):
+    """Return dates still awaiting a successful retry."""
+    path = Path(log_path or os.environ.get("EUR_LEX_MISS_LOG", DEFAULT_LOG_PATH))
+    if not path.exists():
+        return set()
+    with path.open(newline="", encoding="utf-8") as handle:
+        return {row['date'] for row in csv.DictReader(handle) if row.get('date')}
+
+
 def record_attempt(date, error=None, log_path=None):
     """Keep a CSV containing only dates whose latest write attempt failed."""
     path = Path(log_path or os.environ.get("EUR_LEX_MISS_LOG", DEFAULT_LOG_PATH))

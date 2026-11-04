@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from eurovoc_miner.miss_log import record_attempt
+from eurovoc_miner.miss_log import failed_dates, record_attempt
 
 
 class MissLogTests(unittest.TestCase):
@@ -18,8 +18,10 @@ class MissLogTests(unittest.TestCase):
                 rows = list(csv.DictReader(handle))
             self.assertEqual([row["date"] for row in rows], ["2026-09-01"])
             self.assertEqual(rows[0]["error"], "request timed out")
+            self.assertEqual(failed_dates(path), {'2026-09-01'})
 
             record_attempt(failed_date, log_path=path)
+            self.assertEqual(failed_dates(path), set())
             with path.open(newline="", encoding="utf-8") as handle:
                 self.assertEqual(list(csv.DictReader(handle)), [])
 

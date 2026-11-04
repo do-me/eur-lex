@@ -8,7 +8,7 @@ import polars as pl
 
 from .config import FILES_DIR, SCHEMA
 from .core import get_docs_text
-from .miss_log import record_attempt
+from .miss_log import failed_dates, record_attempt
 from .processor import clean_text_batch, filter_keyword_matches, match_keywords
 
 log = logging.getLogger(__name__)
@@ -158,6 +158,7 @@ def _run_backfill(args, lang_filter, lang_suffix):
         from_date = None  # resolved below from existing files
 
     existing = _scan_existing(args.output_prefix, lang_suffix)
+    logged = failed_dates() if args.retry_logged else set()
     if from_date is None:
         if not existing:
             raise SystemExit("No existing files found and no --from-date given; nothing to backfill.")
@@ -178,6 +179,8 @@ def _run_backfill(args, lang_filter, lang_suffix):
         rec = existing.get(iso)
         if rec is None:
             to_fetch.append((d, 'missing'))
+        elif iso in logged:
+            to_fetch.append((d, 'logged failure'))
         else:
             _path, nrows = rec
             if nrows == 0:
@@ -323,6 +326,8 @@ def run():
                     help='Enable backfill mode. Scans FILES_DIR for the given prefix/lang and re-fetches only the dates that are missing within the range.')
     bf.add_argument('--retry-empty', action='store_true',
                     help='In backfill mode, also re-fetch dates whose existing parquet has 0 rows. Requires --from-date.')
+    bf.add_argument('--retry-logged', action='store_true',
+                    help='Also retry dates in missing_dates.csv within the backfill range, even if a file already exists.')
     bf.add_argument('--from-date', type=str, help='Backfill range start (YYYY-MM-DD). Default: earliest existing matching date.')
     bf.add_argument('--to-date', type=str, help='Backfill range end (YYYY-MM-DD). Default: today.')
     bf.add_argument('--dry-run', action='store_true', help='Report what would be backfilled; no SPARQL/document fetches.')

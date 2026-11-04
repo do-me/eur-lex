@@ -1,5 +1,7 @@
-"""Validate newly mined daily Parquets before the weekly upload."""
+"""Validate new or refreshed daily Parquets before the weekly upload."""
 import datetime
+import hashlib
+import json
 import os
 import re
 from pathlib import Path
@@ -8,6 +10,12 @@ import polars as pl
 from huggingface_hub import HfApi
 
 from eurovoc_miner.config import FILES_DIR, SCHEMA
+
+
+def save_seed_manifest():
+    hashes = {str(path): hashlib.sha256(path.read_bytes()).hexdigest()
+              for path in Path(FILES_DIR).glob('*/dataset_*_eng.parquet')}
+    Path(os.environ['EURLEX_SEED_MANIFEST']).write_text(json.dumps(hashes))
 
 
 def validate(path):
@@ -35,16 +43,19 @@ def validate(path):
 def main():
     api = HfApi()
     remote = set(api.list_repo_files(os.environ['HF_DATASET'], repo_type='dataset'))
+    manifest = os.environ.get('EURLEX_SEED_MANIFEST')
+    baseline = json.loads(Path(manifest).read_text()) if manifest else {}
     count = rows = 0
     for path in sorted(Path(FILES_DIR).glob('*/dataset_*_eng.parquet')):
         target = 'files/' + path.relative_to(FILES_DIR).as_posix()
-        if target in remote:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        if target in remote and baseline.get(str(path)) == digest:
             continue
         n = validate(path)
         count += 1
         rows += n
         print(f'Validated {target}: {n} rows')
-    print(f'Validated {count} new files, {rows} rows')
+    print(f'Validated {count} new/refreshed files, {rows} rows')
 
 
 if __name__ == '__main__':

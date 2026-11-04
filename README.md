@@ -209,6 +209,8 @@ reported partial result fails the whole date instead of saving truncated data.
 `missing_dates.csv` lists dates whose latest mining attempt failed before a
 Parquet could be written. Successful retries remove the date. The weekly
 workflow updates the file from both its backfill and 14-day refresh steps.
+Backfill uses `--retry-logged` to retry failed refreshes even when an older
+file already exists; successful retries remove those stale entries too.
 
 ## Project Structure
 - `src/eurovoc_miner/`: Core logic and CLI.

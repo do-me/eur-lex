@@ -28,6 +28,7 @@ jobs:
       HF_DATASET: do-me/EUR-LEX
       # Reversible: remove/set to 0 to use the prior Polars writer.
       EURLEX_COMPACT_PARQUET: '1'
+      EURLEX_SEED_MANIFEST: ${{ runner.temp }}/eurlex-seed.json
     permissions:
       contents: write
 
@@ -50,7 +51,9 @@ jobs:
 
       - name: Test query limits and pagination
         id: query-tests
-        run: uv run python -m unittest discover -s tests -p 'test_sparql_pagination.py' -v
+        run: |
+          uv run python -m unittest discover -s tests -p 'test_sparql_pagination.py' -v
+          uv run python -m unittest discover -s tests -p 'test_logged_retry.py' -v
 
       # Seed ./files/ with the current year's existing parquets from HF so the
       # backfill step can see which dates are already present. HF caches by
@@ -72,6 +75,8 @@ jobs:
               local_dir='.',
               allow_patterns=[f'files/{year}/*.parquet'],
           )
+          from scripts.validate_new_files import save_seed_manifest
+          save_seed_manifest()
           "
 
       # Self-healing backfill runs FIRST: re-mine any date in the [60d, 14d]
@@ -96,7 +101,7 @@ jobs:
           if [ "$RETRY_EMPTY" = "true" ]; then EXTRA+=(--retry-empty); fi
           echo "Backfilling missing/empty parquets in [$FROM .. $TO]"
           uv run eur_lex_miner dataset_ \
-            --backfill-missing "${EXTRA[@]}" \
+            --backfill-missing --retry-logged "${EXTRA[@]}" \
             --from-date "$FROM" --to-date "$TO" \
             --lang ENG --unique-on celex
 
@@ -111,9 +116,8 @@ jobs:
         run: |
           uv run eur_lex_miner dataset_ --lookback 14 --unique-on celex --lang ENG
 
-      # Validate new files before they are published. Existing seeded files
-      # are never included in this validation's upload candidate set.
-      - name: Validate new daily files
+      # Check both new files and any seeded files changed by a refresh.
+      - name: Validate new or refreshed daily files
         id: validate
         if: ${{ !cancelled() && steps.query-tests.outcome == 'success' && steps.seed.outcome == 'success' }}
         run: uv run --with huggingface_hub python scripts/validate_new_files.py
@@ -136,4 +140,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add missing_dates.csv
           git commit -m "Update missing-date log [skip ci]"
-          git push
+          for ATTEMPT in 1 2 3; do
+            if git push; then exit 0; fi
+            sleep "$((ATTEMPT * 5))"
+          done
+          exit 1
