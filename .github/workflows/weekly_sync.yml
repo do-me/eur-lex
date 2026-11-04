@@ -28,7 +28,7 @@ jobs:
       HF_DATASET: do-me/EUR-LEX
       # Reversible: remove/set to 0 to use the prior Polars writer.
       EURLEX_COMPACT_PARQUET: '1'
-      EURLEX_SEED_MANIFEST: ${{ runner.temp }}/eurlex-seed.json
+      EURLEX_SEED_MANIFEST: .eurlex-seed-manifest.json
     permissions:
       contents: write
 
