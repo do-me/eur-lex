@@ -201,6 +201,11 @@ The output will be saved as daily `.parquet` files in the `files/` directory.
 
 ### Missing-date log
 
+Cellar queries use pages of at most 1,000 final metadata results, ordered by
+work, date, and language. Full pages are followed automatically; candidate
+works are never limited before language/EuroVoc filtering. A failed page or
+reported partial result fails the whole date instead of saving truncated data.
+
 `missing_dates.csv` lists dates whose latest mining attempt failed before a
 Parquet could be written. Successful retries remove the date. The weekly
 workflow updates the file from both its backfill and 14-day refresh steps.

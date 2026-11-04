@@ -67,9 +67,10 @@ graph ?lgc { ?lg dc:identifier ?langIdentifier .
  FILTER( ?date < "{{ end }}"^^xsd:date)
     ?work cdm:work_id_document ?workId_.
 }
-LIMIT 10000000
 }
 }
 GROUP BY ?work  ?date ?langIdentifier
-OFFSET 0
+ORDER BY ?work ?date ?langIdentifier
+LIMIT {{ page_size }}
+OFFSET {{ offset }}
 

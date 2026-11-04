@@ -5,13 +5,24 @@ on:
     # 03:00 UTC = 04:00 CET (Standard Time)
     - cron: '0 3 * * 1'
   workflow_dispatch:
+    inputs:
+      from_date:
+        description: 'Optional backfill start (YYYY-MM-DD; default 60 days ago)'
+        type: string
+      to_date:
+        description: 'Optional backfill end (YYYY-MM-DD; default 14 days ago)'
+        type: string
+      retry_empty:
+        description: 'Also retry existing zero-row files'
+        type: boolean
+        default: true
 
 jobs:
   miner-and-upload:
     runs-on: ubuntu-latest
     # Cap the job well below the GH Actions 6h default. If a slow Cellar endpoint
     # makes the miner hang, we fail fast and the next weekly run picks up the gaps.
-    timeout-minutes: 30
+    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && 75 || 30 }}
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
       HF_DATASET: do-me/EUR-LEX
@@ -37,12 +48,17 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      - name: Test query limits and pagination
+        id: query-tests
+        run: uv run python -m unittest discover -s tests -p 'test_sparql_pagination.py' -v
+
       # Seed ./files/ with the current year's existing parquets from HF so the
       # backfill step can see which dates are already present. HF caches by
       # content hash, so this only transfers the bytes for files we don't have.
       # Steady-state this is one full year (~80 MB); the upload at the end will
       # be a no-op for unchanged files (same content hash).
       - name: Seed local files from HF (current year)
+        id: seed
         run: |
           export YEAR=$(date -u +%Y)
           echo "Seeding files/$YEAR/ from $HF_DATASET"
@@ -66,15 +82,21 @@ jobs:
       # gap over as many weekly runs as needed. Higher priority than lookback
       # because missing old dates can only be recovered here.
       - name: Self-healing backfill (14-60 days back)
-        timeout-minutes: 15
+        timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && 45 || 15 }}
         # A timed-out backfill is partial progress, not a job failure.
         continue-on-error: true
+        env:
+          BACKFILL_FROM: ${{ inputs.from_date }}
+          BACKFILL_TO: ${{ inputs.to_date }}
+          RETRY_EMPTY: ${{ github.event_name != 'workflow_dispatch' || inputs.retry_empty }}
         run: |
-          FROM=$(date -u -d '60 days ago' +%Y-%m-%d)
-          TO=$(date -u -d '14 days ago' +%Y-%m-%d)
+          FROM="${BACKFILL_FROM:-$(date -u -d '60 days ago' +%Y-%m-%d)}"
+          TO="${BACKFILL_TO:-$(date -u -d '14 days ago' +%Y-%m-%d)}"
+          EXTRA=()
+          if [ "$RETRY_EMPTY" = "true" ]; then EXTRA+=(--retry-empty); fi
           echo "Backfilling missing/empty parquets in [$FROM .. $TO]"
           uv run eur_lex_miner dataset_ \
-            --backfill-missing --retry-empty \
+            --backfill-missing "${EXTRA[@]}" \
             --from-date "$FROM" --to-date "$TO" \
             --lang ENG --unique-on celex
 
@@ -82,17 +104,29 @@ jobs:
       # (Cellar back-fills its index) get picked up. Runs even if the backfill
       # step was cancelled by its own timeout.
       - name: Refresh recent window (last 14 days)
-        if: always()
+        if: ${{ !cancelled() && steps.query-tests.outcome == 'success' && steps.seed.outcome == 'success' }}
         timeout-minutes: 10
         # A timed-out lookback is partial progress, not a job failure.
         continue-on-error: true
         run: |
           uv run eur_lex_miner dataset_ --lookback 14 --unique-on celex --lang ENG
 
+      # Validate new files before they are published. Existing seeded files
+      # are never included in this validation's upload candidate set.
+      - name: Validate new daily files
+        id: validate
+        if: ${{ !cancelled() && steps.query-tests.outcome == 'success' && steps.seed.outcome == 'success' }}
+        run: uv run --with huggingface_hub python scripts/validate_new_files.py
+
+      - name: Run Upload Script
+        id: upload
+        if: ${{ !cancelled() && steps.validate.outcome == 'success' }}
+        run: uv run --with huggingface_hub python scripts/upload_to_hf.py
+
       # The miner keeps this file to unresolved failures only. Both the
       # backfill and 14-day refresh update it after every attempted date.
       - name: Persist missing-date log
-        if: always()
+        if: ${{ !cancelled() && steps.upload.outcome == 'success' }}
         run: |
           if git diff --quiet -- missing_dates.csv; then
             echo "Missing-date log unchanged."
@@ -103,10 +137,3 @@ jobs:
           git add missing_dates.csv
           git commit -m "Update missing-date log [skip ci]"
           git push
-
-      # Always upload whatever parquets are on disk, even if previous steps
-      # were cancelled by their timeouts. Partial progress is still progress —
-      # the next weekly run picks up the remaining gaps.
-      - name: Run Upload Script
-        if: always()
-        run: uv run --with huggingface_hub python scripts/upload_to_hf.py

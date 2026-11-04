@@ -1,16 +1,24 @@
 import datetime
-import requests
-import jinja2
-import xmltodict
 import logging
-from joblib import expires_after
+
+import jinja2
+import requests
+import xmltodict
+from joblib import Memory, expires_after
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
-from .config import USER_AGENT, SPARQL_ENDPOINT, EUROVOC_XML_URL, TEMPLATES_DIR, CACHE_DIR
-from joblib import Memory
+
+from .config import (
+    CACHE_DIR,
+    EUROVOC_XML_URL,
+    SPARQL_ENDPOINT,
+    TEMPLATES_DIR,
+    USER_AGENT,
+)
 
 log = logging.getLogger(__name__)
 memory = Memory(CACHE_DIR, verbose=0)
+SPARQL_PAGE_SIZE = 1000
 
 def get_session():
     session = requests.Session()
@@ -62,21 +70,28 @@ def get_eurovoc_terms_and_id():
         
     return eurovoc_terms_and_id
 
-def get_sparql_query(d, lang=None, days=1):
+def get_sparql_query(d, lang=None, days=1, *, offset=0, page_size=SPARQL_PAGE_SIZE):
     """Render the SPARQL query template."""
+    if not 1 <= page_size <= SPARQL_PAGE_SIZE or offset < 0:
+        raise ValueError("SPARQL pages must contain 1..1000 rows with a non-negative offset")
     start = d.strftime('%Y-%m-%d')
     end = (d + datetime.timedelta(days=days)).strftime('%Y-%m-%d')
     environment = jinja2.Environment(loader=jinja2.FileSystemLoader(TEMPLATES_DIR))
     template = environment.get_template("query.j2")
-    return template.render(start=start, end=end, lang=lang)
+    return template.render(start=start, end=end, lang=lang,
+                           page_size=page_size, offset=offset)
 
 def get_json_response(d, lang=None, days=1):
-    """Execute SPARQL query and return JSON response."""
+    """Fetch every final-result page; fail before writing on partial/error responses.
+
+    Cellar blocks public queries with LIMIT > 999999. Limiting the inner
+    work-selection subquery also silently drops candidates before language
+    and EuroVoc filtering. Page only the final grouped results, in a stable
+    order, and keep every request comfortably below the service's limit.
+    """
     headers = {'User-Agent': USER_AGENT}
-    query = get_sparql_query(d, lang=lang, days=days)
     params = {
         "default-graph-uri": "",
-        "query": query,
         "format": "application/sparql-results+json",
         "timeout": "0",
         "debug": "on",
@@ -84,14 +99,32 @@ def get_json_response(d, lang=None, days=1):
     }
 
     session = get_session()
-    # (connect, read) seconds. Fail fast when the SPARQL endpoint hangs — the
-    # April 2026 weekly runs burned the full 6h GH Actions budget on calls that
-    # never returned because no read timeout was set here. 90s is generous for
-    # any healthy day-window query (typically <5s) and tight enough that 14
-    # stuck dates fit comfortably inside the 30-min job cap.
-    response = session.get(SPARQL_ENDPOINT, headers=headers, params=params, timeout=(10, 90))
-    response.raise_for_status()
-    return response.json()
+    combined = None
+    offset = 0
+    previous_page = None
+    with session:
+        while True:
+            params['query'] = get_sparql_query(d, lang=lang, days=days, offset=offset)
+            response = session.get(SPARQL_ENDPOINT, headers=headers, params=params, timeout=(10, 90))
+            response.raise_for_status()
+            state = response.headers.get('X-SQL-State', '00000')
+            if state != '00000' or response.headers.get('X-SPARQL-MaxRows'):
+                raise RuntimeError(f"Cellar returned partial results (SQL state {state}); retry the date")
+            page = response.json()
+            bindings = page['results']['bindings']
+            if len(bindings) > SPARQL_PAGE_SIZE:
+                raise RuntimeError("Cellar ignored the final-result page size")
+            if bindings and bindings == previous_page:
+                raise RuntimeError("Cellar repeated a page; refusing incomplete results")
+            if combined is None:
+                combined = page
+                combined['results']['bindings'] = list(bindings)
+            else:
+                combined['results']['bindings'].extend(bindings)
+            if len(bindings) < SPARQL_PAGE_SIZE:
+                return combined
+            previous_page = bindings
+            offset += SPARQL_PAGE_SIZE
 
 def get_concepts_id(list_of_eurovoc_terms):
     """Map terms to IDs."""
